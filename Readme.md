@@ -25,5 +25,14 @@ sudo systemctl status apache2
 sudo systemctl status mariadb
 ```
 *(se comprueba el estado `active (runing)`)*
+
+### Configuración de la Base de Datos (MariaDB)
+Se accede al gestor de bases de datos para inicializar el esquema del proyecto y configurar un usuario con acceso local restringido:
+```sql
+CREATE DATABASE paiportarbolado;
+CREATE USER 'arbol_user'@'localhost' IDENTIFIED BY 'arbol_pass_123';
+GRANT ALL PRIVILEGES ON paiportarbolado.* TO 'arbol_user'@'localhost';
+FLUSH PRIVILEGES;
+```
 ## 3. Resolución de Problemas Controlados
 ## Mejoras Técnicas Implementadas
