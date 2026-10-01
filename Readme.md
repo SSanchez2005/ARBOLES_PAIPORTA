@@ -15,15 +15,15 @@
 ### Verificación de Servicios Base
 Una vez instalados los paquetes de la pila LAMP, se verifica que los servicios principiales del sistema operativo invitado se encuentran activos y ejecutándose correctamente:
 * **Servidor Web Apache:**
-\`\`\`bash
+```bash
 sudo systemctl status apache2
-\`\`\`
+```
 *(se comprueba estado `active (runing)`)*
 
 * **Servidor de Bases de Datos MariaDB:**
-\`\`\`bash
+```bash
 sudo systemctl status mariadb
-\`\`\`
+```
 *(se comprueba el estado `active (runing)`)*
 ## 3. Resolución de Problemas Controlados
 ## Mejoras Técnicas Implementadas
