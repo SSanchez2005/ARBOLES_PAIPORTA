@@ -1,37 +1,41 @@
 <?php
+require_once 'auth.php';
 require_once 'config.php';
 
-$id = $_GET['id'] ?? null;
-if (!$id) {
+$id = (int)($_GET['id'] ?? 0);
+if ($id <= 0) {
     header("Location: index.php");
     exit();
 }
 
 // Obtener datos del árbol
-$sql = "SELECT * FROM arboles WHERE id = $id";
-$result = $conn->query($sql);
-$arbol = $result->fetch_assoc();
+$stmt = $conn->prepare("SELECT * FROM arboles WHERE id = ?");
+$stmt->bind_param('i', $id);
+$stmt->execute();
+$arbol = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if (!$arbol) {
+    header("Location: index.php");
+    exit();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $especie = $conn->real_escape_string($_POST['especie']);
-    $ubicacion = $conn->real_escape_string($_POST['ubicacion']);
+    $especie = $_POST['especie'];
+    $ubicacion = $_POST['ubicacion'];
     $fecha = $_POST['fecha_plantacion'];
-    $estado = $conn->real_escape_string($_POST['estado']);
-    $usuario = $conn->real_escape_string($_POST['usuario']);
+    $estado = $_POST['estado'];
+    $usuario = $_POST['usuario'];
 
-    $sql = "UPDATE arboles SET
-    especie = '$especie',
-    ubicacion = '$ubicacion',
-    fecha_plantacion = '$fecha',
-    estado = '$estado'
-    WHERE id = $id";
+    $stmt = $conn->prepare("UPDATE arboles SET especie = ?, ubicacion = ?, fecha_plantacion = ?, estado = ? WHERE id = ?");
+    $stmt->bind_param('ssssi', $especie, $ubicacion, $fecha, $estado, $id);
 
-    if ($conn->query($sql)) {
+    if ($stmt->execute()) {
         registerAction("Tree Updated: ID $id", $usuario);
         header("Location: index.php");
         exit();
     } else {
-        echo "Error: " . $conn->error;
+        echo "Error: " . $stmt->error;
     }
 }
 ?>

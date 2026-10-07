@@ -1,0 +1,4 @@
+paiportarbolado-src/logs/*
+paiportarbolado-src/uploads/*
+!paiportarbolado-src/logs/.gitkeep
+!paiportarbolado-src/uploads/.gitkeep

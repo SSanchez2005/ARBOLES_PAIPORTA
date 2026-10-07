@@ -1,8 +1,14 @@
 <?php
+require_once 'auth.php';
 require_once 'config.php';
 
-$id = $_GET['id'] ?? null;
-if (!$id) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: index.php");
+    exit();
+}
+
+$id = (int)($_POST['id'] ?? 0);
+if ($id <= 0) {
     header("Location: index.php");
     exit();
 }
@@ -10,13 +16,13 @@ if (!$id) {
 // Obtener usuario (simulado)
 $usuario = "admin";
 
-// Eliminar
-$sql = "DELETE FROM arboles WHERE id = $id";
-if ($conn->query($sql)) {
+$stmt = $conn->prepare("DELETE FROM arboles WHERE id = ?");
+$stmt->bind_param('i', $id);
+
+if ($stmt->execute()) {
     registerAction("Tree Deleted: ID $id", $usuario);
     header("Location: index.php");
     exit();
 } else {
-    echo "Error: " . $conn->error;
+    echo "Error: " . $stmt->error;
 }
-?>
