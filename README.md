@@ -1,30 +1,18 @@
 # Documentación: PaiportArbolado
-
+ 
 Aplicación web CRUD (PHP + MariaDB) para gestionar la base de datos de árboles del Ayuntamiento de Paiporta, desplegada en una máquina virtual con Ubuntu Server.
-
+ 
 ## Índice
-
-1. [Proceso de Despliegue](#1-proceso-de-despliegue)
+ 
+1. [Proceso de despliegue](#1-proceso-de-despliegue)
 2. [Arquitectura de despliegue](#2-arquitectura-de-despliegue)
-3. [Base de Datos](#3-base-de-datos)
+3. [Base de datos](#3-base-de-datos)
 4. [Configuración de Apache, DNS local y HTTPS](#4-configuración-de-apache-dns-local-y-https)
-5. [Resolución de problemas controlados](#5-resolucion-de-problemas-controlados)
+5. [Problemas analizados y causas](#5-problemas-analizados-y-causas)
 6. [Mejoras técnicas implementadas](#6-mejoras-técnicas-implementadas)
 7. [Funcionalidades no implementadas](#7-funcionalidades-no-implementadas)
 8. [Mejoras propuestas](#8-mejoras-propuestas)
 9. [Estructura del repositorio](#9-estructura-del-repositorio)
-
----
-
-## 1. Proceso de Despliegue
-
-### Fase 1: Preparación del código y control de versiones
-
-* Se ha partido del código fuente original (`paiportarbolado-src.tar.gz`) suministrado para el proyecto.
-* Se ha extraido el código en una carpeta de trabajo limpia.
-* Se ha inicializado un repositorio Git local para llevar el control de versiones de las mejoras solicitadas.
-* Se ha vinculado un repositorioremoto en Github para mantener el código
-
 ---
  
 ## 1. Proceso de despliegue
@@ -135,7 +123,7 @@ Se usan los puertos 8080 y 8443 en el anfitrión porque los puertos inferiores a
  
 El repositorio incluye dos scripts SQL:
  
-* `create-db.sql`: crea la base de datos `PaiportArbolado` y el usuario `user_bd` (para `127.0.0.1` y `localhost`) con permisos solo sobre esa base de datos.
+* `create-db.sql`: crea la base de datos `PaiportArbolado` y el usuario `user_bd` (para `127.0.0.1` y `localhost`). El `GRANT` original solo cubre `127.0.0.1`, que es el host que usa la aplicación.
 * `populate-sql.sql`: crea la tabla `arboles`.
 ```bash
 cd /var/www/arboles_paiporta/paiportarbolado-src
@@ -284,25 +272,43 @@ y se importa en **Ajustes → Privacidad y seguridad → Ver certificados → Au
  
 ---
  
-## 5. Resolución de problemas controlados
+## 5. Problemas analizados y causas
  
-| Problema | Causa | Solución |
+Esta sección separa tres cosas: los fallos **comprobados** leyendo el código original, los problemas **típicos de un despliegue** que se han analizado (no todos llegaron a ocurrir) y las **incidencias reales** que surgieron durante el proceso.
+ 
+### 5.1 Fallos comprobados en el código original
+ 
+| Problema | Causa (verificada en el código) | Solución |
 |---|---|---|
-| **BD no conecta** | En `create-db.sql` el usuario se creaba para `127.0.0.1` y `localhost`, pero el `GRANT` solo se daba a `127.0.0.1`. También puede deberse a credenciales incorrectas en `config.php` o al servicio `mariadb` parado. | Dar `GRANT` a ambos hosts, revisar `config.php` y leer el log de Apache. El mensaje del log distingue el caso: `Access denied ... (using password: YES)` = credenciales; `Connection refused` = servicio caído; `Access denied ... to database` = falta el `GRANT`. |
-| **Error 500 al enviar formulario** | Con PHP 8, `mysqli` lanza excepciones; si un dato es inválido (p. ej. una fecha mal formada) y no se captura, PHP devuelve un 500. También ocurre si falta la extensión `php-mysql`. | Instalar `php-mysql`, validar la entrada y/o capturar `mysqli_sql_exception`. Se diagnostica con `sudo tail -f /var/log/apache2/arboles_ssl_error.log`. En `config.php` se captura el error de conexión y se muestra un mensaje genérico (el detalle va al log). |
-| **Imágenes no se suben** | Permisos de `uploads/` incorrectos para `www-data`, o el tamaño supera `upload_max_filesize` / `post_max_size` de PHP. Además, el formulario necesita `enctype="multipart/form-data"`. | `chown www-data:www-data` y `chmod 775` sobre `uploads/`; subir `upload_max_filesize` a 5M en `/etc/php/*/apache2/php.ini` y reiniciar Apache; añadir el `enctype` al formulario. |
-| **Página no carga con HTTPS** | Falta activar `mod_ssl` (`a2enmod ssl`), falta el VirtualHost del 443 o la regla de reenvío 8443 → 443 en VirtualBox. | `sudo a2enmod ssl`, crear el VirtualHost 443 con las rutas correctas del certificado, comprobar `configtest` y añadir la regla de reenvío de puertos. |
-| **Logs vacíos** | La carpeta `logs/` no existe tras el `clone` (Git no guarda carpetas vacías) o `www-data` no tiene permiso de escritura. | Crear `logs/`, `chown -R www-data:www-data` y `chmod 775`. `registerAction()` además crea la carpeta si falta y avisa en el log de Apache si no puede escribir. |
+| **El buscador no filtra** | `index.php` llama a `buscarArboles()` pero `script.js` define `searchTrees()`. | Renombrar la función a `buscarArboles`. |
+| **Rayas de la tabla y hover del botón sin efecto** | En `style.css` los selectores están escritos `tr\:nth-child` y `button\:hover` (con barra invertida), que no son válidos. En el JS la barra es inofensiva. | Quitar la barra invertida. |
+| **Logs vacíos** | `config.php` escribe en `logs/actions.log`, pero la carpeta `logs/` no viene en el código original ni la crea Git. `file_put_contents` falla sin avisar. | Crear `logs/` con propietario `www-data` y permisos 775. `registerAction()` ahora la crea si falta y avisa en el log de Apache si no puede escribir. |
+| **Error 500 al enviar formulario** | Desde PHP 8.1, `mysqli` lanza excepciones. Cualquier error SQL (una fecha inválida, un `id` no numérico) o de conexión que no se capture acaba en un 500. Reproducido enviando una fecha inválida con `curl`. | Consultas preparadas, validar entradas y capturar `mysqli_sql_exception`. Se diagnostica con `sudo tail -f /var/log/apache2/arboles_ssl_error.log`. |
+| **SQL injection** | `$id` (en `editar.php` y `eliminar.php`) y `$fecha` (en `crear.php` y `editar.php`) se concatenaban en el SQL sin protección. Reproducido con `editar.php?id=999 OR 1=1`. | Consultas preparadas con `prepare()` y `bind_param()`. |
+| **Borrado por GET** | `eliminar.php` borraba al visitar la URL, sin comprobar el método. | Aceptar solo POST. |
  
 > Nota: el nombre real del fichero de log de la aplicación es `logs/actions.log` (el enunciado menciona `acciones.log`).
  
-### Errores adicionales encontrados en el código original
+### 5.2 Problemas habituales del despliegue (analizados)
  
-| Problema | Causa | Solución |
+Los cinco problemas del enunciado. Aquí se indican las causas más probables y cómo se diagnostican; no todos llegaron a ocurrir en este despliegue.
+ 
+| Problema | Causas posibles | Cómo se diagnostica |
 |---|---|---|
-| **El buscador no filtra** | `index.php` llamaba a `buscarArboles()` pero `script.js` definía `searchTrees()`. | Renombrar la función a `buscarArboles`. |
-| **Selectores CSS/JS inválidos** | Aparecían escapados como `tr\:nth-child`, `button\:hover`, `tr\:not(\:first-child)`. | Quitar las barras invertidas. |
-| **SQL injection** | `$id` y `$fecha` se concatenaban directamente en las consultas (`editar.php`, `eliminar.php`, `crear.php`). | Consultas preparadas con `prepare()` y `bind_param()` (ver sección 6). |
+| **BD no conecta** | Base de datos o usuario sin crear (scripts SQL no ejecutados o en mal orden), servicio `mariadb` parado, credenciales distintas a las de `config.php`, falta de `GRANT`. | El log de Apache distingue el caso: `Access denied ... (using password: YES)` = credenciales; `Connection refused` = servicio caído; `Access denied ... to database` = falta el `GRANT`. Se probó provocando cada caso. |
+| **Imágenes no se suben** | Permisos de `uploads/` incorrectos para `www-data`, tamaño superior a `upload_max_filesize` / `post_max_size`, o formulario sin `enctype="multipart/form-data"`. | Log de Apache (`Permission denied`) y valores de `php.ini`. Se dejó `upload_max_filesize = 5M`. |
+| **Página no carga con HTTPS** | Falta `a2enmod ssl`, el VirtualHost 443, rutas erróneas del certificado o el reenvío 8443 → 443 en VirtualBox. | `apache2ctl configtest`, `ss -tlnp | grep 443` y revisar las reglas de red de VirtualBox. |
+ 
+> El `GRANT` de `create-db.sql` solo se da a `user_bd@127.0.0.1`, que es el host que usa `config.php`, así que la aplicación conecta bien. Si `DB_HOST` se cambiara a `localhost`, el usuario de ese host no tendría permisos.
+ 
+### 5.3 Incidencias reales durante el despliegue
+ 
+| Incidencia | Causa | Solución |
+|---|---|---|
+| El hash de la contraseña se guardó como `y2/doYhuxS...` y el login fallaba | Al insertarlo con `mariadb -e "..."` entre comillas dobles, la shell interpretó los `$` del hash como variables | `UPDATE users SET password_hash = '...'` dentro del cliente de MariaDB, donde no interviene la shell |
+| `openssl req` daba "extra option" | Al pegar el comando multilínea se rompió la barra `\` de continuación | Escribirlo en una sola línea |
+| `git commit` daba `Permission denied` en `.git/index.lock` y `Author identity unknown` | El repositorio se clonó con `sudo` (propietario root) y no había identidad configurada | `chown -R` al usuario, `git config user.name/user.email` y no usar `sudo git` |
+| Aviso de "conexión no segura" en HTTPS | Certificado autofirmado: cifra, pero ninguna autoridad respalda la identidad | Aceptable según el enunciado; se importó el certificado en Firefox |
  
 ---
  
@@ -375,12 +381,6 @@ arboles_paiporta/
     └── uploads/           # imágenes subidas (ignoradas por Git)
 ```
  
-
-
-
-
-
-
 
 
 
