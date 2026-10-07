@@ -16,6 +16,7 @@ $result = $conn->query($sql);
 </head>
 <body>
     <h1>Gestión de Árboles de Paiporta</h1>
+    <a href="dashboard.php">Ver estadísticas</a>
     <a href="crear.php"> Añadir nuevo árbol</a>
     <input type="text" id="buscar" placeholder="Buscar por especie o ubicación..." onkeyup="buscarArboles()">
 
